@@ -300,13 +300,43 @@
                        Margin="0,0,0,15"
                        Text="Ready to translate. Please configure settings above."/>
             
-            <!-- Translate Button -->
-            <Button Content="🚀 Start Translation" 
-                    Click="TranslateButton_Click" 
-                    Style="{StaticResource PrimaryButton}"
-                    IsEnabled="False" 
-                    x:Name="TranslateButton"
-                    HorizontalAlignment="Stretch"/>
+            <!-- Translate/Stop Buttons -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Content="🚀 Start Translation" 
+                        Click="TranslateButton_Click" 
+                        Style="{StaticResource PrimaryButton}"
+                        IsEnabled="False" 
+                        x:Name="TranslateButton"
+                        Grid.Column="0"
+                        Margin="0,0,10,0"/>
+                <Button Content="⏹ Stop" 
+                        Click="StopButton_Click" 
+                        IsEnabled="False"
+                        Visibility="Collapsed"
+                        x:Name="StopButton"
+                        Grid.Column="1"
+                        MinWidth="100"
+                        Padding="15,10">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                            <Setter Property="Background" Value="#F44336"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#D32F2F"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Background" Value="#CCCCCC"/>
+                                    <Setter Property="Foreground" Value="#888888"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </Grid>
         </StackPanel>
     </Grid>
 </Window>

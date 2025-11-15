@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,6 +14,7 @@ namespace Stalker2LocalizationManager
     public partial class MainWindow : Window
     {
         private ITranslationService? _translateService;
+        private CancellationTokenSource? _cancellationTokenSource;
 
         public MainWindow()
         {
@@ -253,6 +255,11 @@ namespace Stalker2LocalizationManager
             }
         }
 
+        private void StopButton_Click(object sender, RoutedEventArgs e)
+        {
+            _cancellationTokenSource?.Cancel();
+        }
+
         private async void TranslateButton_Click(object sender, RoutedEventArgs e)
         {
             if (_translateService == null)
@@ -278,7 +285,14 @@ namespace Stalker2LocalizationManager
                 return;
             }
 
+            // Create cancellation token
+            _cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = _cancellationTokenSource.Token;
+
+            // Update UI
             TranslateButton.IsEnabled = false;
+            StopButton.IsEnabled = true;
+            StopButton.Visibility = Visibility.Visible;
             ProgressBar.Visibility = Visibility.Visible;
             ProgressBar.IsIndeterminate = true;
             StatusTextBlock.Text = "📂 Loading localization file...";
@@ -298,10 +312,18 @@ namespace Stalker2LocalizationManager
 
                 var totalKeys = keysToTranslate.Count;
                 var translatedCount = 0;
+                var wasCancelled = false;
 
                 // Translate each value
                 foreach (var property in keysToTranslate)
                 {
+                    // Check for cancellation
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        wasCancelled = true;
+                        break;
+                    }
+
                     try
                     {
                         var originalText = property.Value.ToString();
@@ -311,7 +333,7 @@ namespace Stalker2LocalizationManager
                             property.Value = translatedText;
                             
                             // Small delay to avoid rate limiting
-                            await Task.Delay(100);
+                            await Task.Delay(100, cancellationToken);
                         }
 
                         translatedCount++;
@@ -322,6 +344,11 @@ namespace Stalker2LocalizationManager
                             ProgressBar.Value = translatedCount;
                             StatusTextBlock.Text = $"🔄 Translating... {translatedCount} / {totalKeys} ({Math.Round(translatedCount * 100.0 / totalKeys, 1)}%)";
                         });
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        wasCancelled = true;
+                        break;
                     }
                     catch (Exception ex)
                     {
@@ -345,17 +372,42 @@ namespace Stalker2LocalizationManager
                     jsonObject["__LANG"] = selectedLanguage.ToUpper();
                 }
 
-                // Save translated JSON
-                StatusTextBlock.Text = "💾 Saving translated file...";
+                // Save translated JSON (even if cancelled, save what we have)
+                StatusTextBlock.Text = wasCancelled ? "⏹ Saving partial translation..." : "💾 Saving translated file...";
                 var outputJson = jsonObject.ToString(Newtonsoft.Json.Formatting.Indented);
                 await File.WriteAllTextAsync(targetFile, outputJson);
 
                 Dispatcher.Invoke(() =>
                 {
                     ProgressBar.Visibility = Visibility.Collapsed;
-                    StatusTextBlock.Text = $"✅ Translation completed! {translatedCount} keys translated successfully.";
-                    MessageBox.Show($"Translation completed successfully!\n\n{translatedCount} keys translated.\n\nFile saved to:\n{targetFile}", 
-                        "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    StopButton.Visibility = Visibility.Collapsed;
+                    StopButton.IsEnabled = false;
+                    
+                    if (wasCancelled)
+                    {
+                        StatusTextBlock.Text = $"⏹ Translation stopped. {translatedCount} / {totalKeys} keys translated and saved.";
+                        MessageBox.Show($"Translation stopped by user.\n\n{translatedCount} out of {totalKeys} keys translated.\n\nPartial translation saved to:\n{targetFile}", 
+                            "Translation Stopped", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        StatusTextBlock.Text = $"✅ Translation completed! {translatedCount} keys translated successfully.";
+                        MessageBox.Show($"Translation completed successfully!\n\n{translatedCount} keys translated.\n\nFile saved to:\n{targetFile}", 
+                            "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    
+                    TranslateButton.IsEnabled = true;
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                // Handle cancellation during file operations
+                Dispatcher.Invoke(() =>
+                {
+                    ProgressBar.Visibility = Visibility.Collapsed;
+                    StopButton.Visibility = Visibility.Collapsed;
+                    StopButton.IsEnabled = false;
+                    StatusTextBlock.Text = "⏹ Translation stopped.";
                     TranslateButton.IsEnabled = true;
                 });
             }
@@ -364,11 +416,18 @@ namespace Stalker2LocalizationManager
                 Dispatcher.Invoke(() =>
                 {
                     ProgressBar.Visibility = Visibility.Collapsed;
+                    StopButton.Visibility = Visibility.Collapsed;
+                    StopButton.IsEnabled = false;
                     StatusTextBlock.Text = $"❌ Error: {ex.Message}";
                     MessageBox.Show($"Error during translation: {ex.Message}", 
                         "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     TranslateButton.IsEnabled = true;
                 });
+            }
+            finally
+            {
+                _cancellationTokenSource?.Dispose();
+                _cancellationTokenSource = null;
             }
         }
     }
