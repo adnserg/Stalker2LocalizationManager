@@ -13,21 +13,34 @@ namespace Stalker2LocalizationManager
 
         public LibreTranslateService(string? apiUrl = null)
         {
-            _apiUrl = apiUrl ?? "https://libretranslate.com";
+            _apiUrl = apiUrl ?? "https://libretranslate.de";
             _httpClient = new HttpClient();
-            _httpClient.Timeout = TimeSpan.FromMinutes(5);
+            _httpClient.Timeout = TimeSpan.FromSeconds(30);
+            // Add user agent to avoid blocking
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
         }
 
         public async Task<bool> TestConnectionAsync()
         {
             try
             {
-                var testText = "Hello";
-                var translated = await TranslateAsync(testText, "en", "ru");
-                return !string.IsNullOrEmpty(translated);
+                // First try to check if server is available
+                var languagesUrl = $"{_apiUrl}/languages";
+                var languagesResponse = await _httpClient.GetAsync(languagesUrl);
+                
+                if (languagesResponse.IsSuccessStatusCode)
+                {
+                    // Server is available, try translation
+                    var testText = "Hello";
+                    var translated = await TranslateAsync(testText, "en", "ru");
+                    return !string.IsNullOrEmpty(translated);
+                }
+                
+                return false;
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"LibreTranslate test failed: {ex.Message}");
                 return false;
             }
         }
@@ -44,12 +57,15 @@ namespace Stalker2LocalizationManager
                 var targetLang = MapLanguageCode(targetLanguage);
 
                 var url = $"{_apiUrl}/translate";
+                
+                // LibreTranslate may require api_key field (can be empty for public servers)
                 var requestBody = new
                 {
                     q = text,
                     source = sourceLang,
                     target = targetLang,
-                    format = "text"
+                    format = "text",
+                    api_key = ""
                 };
 
                 var response = await _httpClient.PostAsJsonAsync(url, requestBody);

@@ -162,15 +162,21 @@
         <Border Grid.Row="1" Style="{StaticResource CardStyle}">
             <StackPanel>
                 <TextBlock Text="🔌 Translation Provider" Style="{StaticResource LabelStyle}" Margin="0,0,0,10"/>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                    <RadioButton x:Name="FreeProviderRadio" Content="🆓 LibreTranslate (Free)" 
-                                 IsChecked="True" 
-                                 Margin="0,0,20,0"
-                                 Checked="ProviderRadio_Checked"
-                                 FontSize="13"/>
-                    <RadioButton x:Name="GoogleProviderRadio" Content="💰 Google Translate API (Paid)" 
-                                 Checked="ProviderRadio_Checked"
-                                 FontSize="13"/>
+                <StackPanel Margin="0,0,0,15">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <RadioButton x:Name="LibreTranslateRadio" Content="🆓 LibreTranslate (Free)" 
+                                     IsChecked="True" 
+                                     Margin="0,0,20,0"
+                                     Checked="ProviderRadio_Checked"
+                                     FontSize="13"/>
+                        <RadioButton x:Name="MyMemoryRadio" Content="🆓 MyMemory (Free)" 
+                                     Margin="0,0,20,0"
+                                     Checked="ProviderRadio_Checked"
+                                     FontSize="13"/>
+                        <RadioButton x:Name="GoogleProviderRadio" Content="💰 Google Translate API (Paid)" 
+                                     Checked="ProviderRadio_Checked"
+                                     FontSize="13"/>
+                    </StackPanel>
                 </StackPanel>
                 
                 <!-- Google API Key Section -->
@@ -206,9 +212,9 @@
                     </Grid>
                 </StackPanel>
                 
-                <!-- LibreTranslate Info -->
+                <!-- Free Provider Info -->
                 <StackPanel x:Name="FreeProviderInfo" Margin="0,10,0,0">
-                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#666666">
+                    <TextBlock x:Name="FreeProviderInfoText" TextWrapping="Wrap" FontSize="12" Foreground="#666666">
                         <Run Text="✅ LibreTranslate is completely free and open-source."/>
                         <LineBreak/>
                         <Run Text="No API key required. Uses public translation servers."/>

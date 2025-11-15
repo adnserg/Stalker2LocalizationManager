@@ -27,9 +27,9 @@ namespace Stalker2LocalizationManager
             // Wait a bit to ensure all XAML elements are fully loaded
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (FreeProviderRadio != null && FreeProviderRadio.IsChecked == true)
+                if (LibreTranslateRadio != null && LibreTranslateRadio.IsChecked == true)
                 {
-                    ProviderRadio_Checked(FreeProviderRadio, new RoutedEventArgs());
+                    ProviderRadio_Checked(LibreTranslateRadio, new RoutedEventArgs());
                 }
             }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
@@ -68,34 +68,37 @@ namespace Stalker2LocalizationManager
         private void ProviderRadio_Checked(object sender, RoutedEventArgs e)
         {
             // Check if elements are initialized
-            if (GoogleApiKeyPanel == null || FreeProviderInfo == null || StatusTextBlock == null)
+            if (GoogleApiKeyPanel == null || FreeProviderInfo == null || StatusTextBlock == null || FreeProviderInfoText == null)
                 return;
 
-            if (FreeProviderRadio.IsChecked == true)
+            if (LibreTranslateRadio.IsChecked == true)
             {
-                // Free provider (LibreTranslate)
+                // LibreTranslate provider
                 GoogleApiKeyPanel.Visibility = Visibility.Collapsed;
                 FreeProviderInfo.Visibility = Visibility.Visible;
+                FreeProviderInfoText.Text = "✅ LibreTranslate is completely free and open-source.\nNo API key required. Uses public translation servers.";
                 StatusTextBlock.Text = "🔄 Testing LibreTranslate connection...";
-                _translateService = new LibreTranslateService();
                 
                 // Test connection automatically
                 Task.Run(async () =>
                 {
                     try
                     {
-                        var result = await _translateService.TestConnectionAsync();
+                        var libreService = new LibreTranslateService();
+                        var libreResult = await libreService.TestConnectionAsync();
+                        
                         Dispatcher.Invoke(() =>
                         {
                             if (StatusTextBlock == null) return;
                             
-                            if (result)
+                            if (libreResult)
                             {
+                                _translateService = libreService;
                                 StatusTextBlock.Text = "✅ LibreTranslate ready! No API key required.";
                             }
                             else
                             {
-                                StatusTextBlock.Text = "⚠️ LibreTranslate connection failed. Please check your internet connection.";
+                                StatusTextBlock.Text = "⚠️ LibreTranslate connection failed. Please check your internet connection or try MyMemory.";
                                 _translateService = null;
                             }
                             UpdateTranslateButtonState();
@@ -108,6 +111,52 @@ namespace Stalker2LocalizationManager
                             if (StatusTextBlock == null) return;
                             
                             StatusTextBlock.Text = $"⚠️ LibreTranslate error: {ex.Message}";
+                            _translateService = null;
+                            UpdateTranslateButtonState();
+                        });
+                    }
+                });
+            }
+            else if (MyMemoryRadio.IsChecked == true)
+            {
+                // MyMemory provider
+                GoogleApiKeyPanel.Visibility = Visibility.Collapsed;
+                FreeProviderInfo.Visibility = Visibility.Visible;
+                FreeProviderInfoText.Text = "✅ MyMemory Translation is completely free.\nNo API key required. Uses public translation API.";
+                StatusTextBlock.Text = "🔄 Testing MyMemory connection...";
+                
+                // Test connection automatically
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        var myMemoryService = new MyMemoryTranslateService();
+                        var myMemoryResult = await myMemoryService.TestConnectionAsync();
+                        
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (StatusTextBlock == null) return;
+                            
+                            if (myMemoryResult)
+                            {
+                                _translateService = myMemoryService;
+                                StatusTextBlock.Text = "✅ MyMemory Translation ready! No API key required.";
+                            }
+                            else
+                            {
+                                StatusTextBlock.Text = "⚠️ MyMemory connection failed. Please check your internet connection or try LibreTranslate.";
+                                _translateService = null;
+                            }
+                            UpdateTranslateButtonState();
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (StatusTextBlock == null) return;
+                            
+                            StatusTextBlock.Text = $"⚠️ MyMemory error: {ex.Message}";
                             _translateService = null;
                             UpdateTranslateButtonState();
                         });
@@ -185,18 +234,22 @@ namespace Stalker2LocalizationManager
             var hasSourceFile = !string.IsNullOrWhiteSpace(SourceFileTextBox.Text) && File.Exists(SourceFileTextBox.Text);
             var hasTargetFile = !string.IsNullOrWhiteSpace(TargetFileTextBox.Text);
             
-            if (FreeProviderRadio.IsChecked == true)
+            if (LibreTranslateRadio.IsChecked == true || MyMemoryRadio.IsChecked == true)
             {
-                // Free provider - no API key needed
+                // Free providers - no API key needed
                 TranslateButton.IsEnabled = hasSourceFile && hasTargetFile && _translateService != null;
             }
-            else
+            else if (GoogleProviderRadio.IsChecked == true)
             {
                 // Google provider - API key and test required
                 TranslateButton.IsEnabled = hasSourceFile && 
                                            hasTargetFile && 
                                            !string.IsNullOrWhiteSpace(ApiKeyBox.Password) &&
                                            _translateService != null;
+            }
+            else
+            {
+                TranslateButton.IsEnabled = false;
             }
         }
 
