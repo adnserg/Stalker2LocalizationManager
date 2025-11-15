@@ -1,19 +1,19 @@
 using System;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Stalker2LocalizationManager
 {
-    public class GoogleTranslateService : ITranslationService
+    public class LibreTranslateService : ITranslationService
     {
-        private readonly string _apiKey;
         private readonly HttpClient _httpClient;
-        private const string TranslateApiUrl = "https://translation.googleapis.com/language/translate/v2";
+        private readonly string _apiUrl;
 
-        public GoogleTranslateService(string apiKey)
+        public LibreTranslateService(string? apiUrl = null)
         {
-            _apiKey = apiKey ?? throw new ArgumentNullException(nameof(apiKey));
+            _apiUrl = apiUrl ?? "https://libretranslate.com";
             _httpClient = new HttpClient();
             _httpClient.Timeout = TimeSpan.FromMinutes(5);
         }
@@ -39,12 +39,16 @@ namespace Stalker2LocalizationManager
 
             try
             {
-                var url = $"{TranslateApiUrl}?key={_apiKey}";
+                // Map language codes to LibreTranslate format
+                var sourceLang = MapLanguageCode(sourceLanguage);
+                var targetLang = MapLanguageCode(targetLanguage);
+
+                var url = $"{_apiUrl}/translate";
                 var requestBody = new
                 {
                     q = text,
-                    source = sourceLanguage,
-                    target = targetLanguage,
+                    source = sourceLang,
+                    target = targetLang,
                     format = "text"
                 };
 
@@ -56,16 +60,11 @@ namespace Stalker2LocalizationManager
                     throw new Exception($"API returned error: {response.StatusCode} - {errorContent}");
                 }
 
-                var result = await response.Content.ReadFromJsonAsync<TranslateResponse>();
+                var result = await response.Content.ReadFromJsonAsync<LibreTranslateResponse>();
                 
-                if (result?.Data?.Translations != null && result.Data.Translations.Count > 0)
+                if (result?.TranslatedText != null && !string.IsNullOrEmpty(result.TranslatedText))
                 {
-                    var translatedText = result.Data.Translations[0].TranslatedText;
-                    if (string.IsNullOrEmpty(translatedText))
-                    {
-                        throw new Exception("Translated text is empty");
-                    }
-                    return translatedText;
+                    return result.TranslatedText;
                 }
 
                 throw new Exception("Translation response is empty");
@@ -84,18 +83,21 @@ namespace Stalker2LocalizationManager
             }
         }
 
-        private class TranslateResponse
+        private string MapLanguageCode(string code)
         {
-            public TranslateData? Data { get; set; }
+            // LibreTranslate uses ISO 639-1 codes, but some mappings might be needed
+            return code.ToLower() switch
+            {
+                "zh" => "zh",
+                "ja" => "ja",
+                "ko" => "ko",
+                _ => code.ToLower()
+            };
         }
 
-        private class TranslateData
+        private class LibreTranslateResponse
         {
-            public System.Collections.Generic.List<Translation>? Translations { get; set; }
-        }
-
-        private class Translation
-        {
+            [System.Text.Json.Serialization.JsonPropertyName("translatedText")]
             public string? TranslatedText { get; set; }
         }
     }

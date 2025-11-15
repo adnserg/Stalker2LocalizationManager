@@ -12,11 +12,26 @@ namespace Stalker2LocalizationManager
 {
     public partial class MainWindow : Window
     {
-        private GoogleTranslateService? _translateService;
+        private ITranslationService? _translateService;
 
         public MainWindow()
         {
             InitializeComponent();
+            // Initialize with free provider by default after window is loaded
+            this.Loaded += MainWindow_Loaded;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Initialize with free provider by default
+            // Wait a bit to ensure all XAML elements are fully loaded
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (FreeProviderRadio != null && FreeProviderRadio.IsChecked == true)
+                {
+                    ProviderRadio_Checked(FreeProviderRadio, new RoutedEventArgs());
+                }
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         private void BrowseSourceButton_Click(object sender, RoutedEventArgs e)
@@ -46,6 +61,66 @@ namespace Stalker2LocalizationManager
             if (dialog.ShowDialog() == true)
             {
                 TargetFileTextBox.Text = dialog.FileName;
+                UpdateTranslateButtonState();
+            }
+        }
+
+        private void ProviderRadio_Checked(object sender, RoutedEventArgs e)
+        {
+            // Check if elements are initialized
+            if (GoogleApiKeyPanel == null || FreeProviderInfo == null || StatusTextBlock == null)
+                return;
+
+            if (FreeProviderRadio.IsChecked == true)
+            {
+                // Free provider (LibreTranslate)
+                GoogleApiKeyPanel.Visibility = Visibility.Collapsed;
+                FreeProviderInfo.Visibility = Visibility.Visible;
+                StatusTextBlock.Text = "🔄 Testing LibreTranslate connection...";
+                _translateService = new LibreTranslateService();
+                
+                // Test connection automatically
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        var result = await _translateService.TestConnectionAsync();
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (StatusTextBlock == null) return;
+                            
+                            if (result)
+                            {
+                                StatusTextBlock.Text = "✅ LibreTranslate ready! No API key required.";
+                            }
+                            else
+                            {
+                                StatusTextBlock.Text = "⚠️ LibreTranslate connection failed. Please check your internet connection.";
+                                _translateService = null;
+                            }
+                            UpdateTranslateButtonState();
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (StatusTextBlock == null) return;
+                            
+                            StatusTextBlock.Text = $"⚠️ LibreTranslate error: {ex.Message}";
+                            _translateService = null;
+                            UpdateTranslateButtonState();
+                        });
+                    }
+                });
+            }
+            else if (GoogleProviderRadio.IsChecked == true)
+            {
+                // Google provider
+                GoogleApiKeyPanel.Visibility = Visibility.Visible;
+                FreeProviderInfo.Visibility = Visibility.Collapsed;
+                _translateService = null; // Reset until API key is tested
+                StatusTextBlock.Text = "Please enter Google Translate API key and test connection.";
                 UpdateTranslateButtonState();
             }
         }
@@ -86,6 +161,7 @@ namespace Stalker2LocalizationManager
                         {
                             StatusTextBlock.Text = "❌ API connection failed. Please check your API key.";
                             MessageBox.Show("API connection failed. Please check your API key.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            _translateService = null;
                         }
                         UpdateTranslateButtonState();
                     });
@@ -97,6 +173,8 @@ namespace Stalker2LocalizationManager
                         TestApiButton.IsEnabled = true;
                         StatusTextBlock.Text = $"❌ Error: {ex.Message}";
                         MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        _translateService = null;
+                        UpdateTranslateButtonState();
                     });
                 }
             });
@@ -104,18 +182,36 @@ namespace Stalker2LocalizationManager
 
         private void UpdateTranslateButtonState()
         {
-            TranslateButton.IsEnabled = !string.IsNullOrWhiteSpace(SourceFileTextBox.Text) &&
-                                       !string.IsNullOrWhiteSpace(TargetFileTextBox.Text) &&
-                                       !string.IsNullOrWhiteSpace(ApiKeyBox.Password) &&
-                                       _translateService != null &&
-                                       File.Exists(SourceFileTextBox.Text);
+            var hasSourceFile = !string.IsNullOrWhiteSpace(SourceFileTextBox.Text) && File.Exists(SourceFileTextBox.Text);
+            var hasTargetFile = !string.IsNullOrWhiteSpace(TargetFileTextBox.Text);
+            
+            if (FreeProviderRadio.IsChecked == true)
+            {
+                // Free provider - no API key needed
+                TranslateButton.IsEnabled = hasSourceFile && hasTargetFile && _translateService != null;
+            }
+            else
+            {
+                // Google provider - API key and test required
+                TranslateButton.IsEnabled = hasSourceFile && 
+                                           hasTargetFile && 
+                                           !string.IsNullOrWhiteSpace(ApiKeyBox.Password) &&
+                                           _translateService != null;
+            }
         }
 
         private async void TranslateButton_Click(object sender, RoutedEventArgs e)
         {
             if (_translateService == null)
             {
-                MessageBox.Show("Please test API connection first", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                if (GoogleProviderRadio.IsChecked == true)
+                {
+                    MessageBox.Show("Please test API connection first", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                else
+                {
+                    MessageBox.Show("Translation service is not initialized", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
                 return;
             }
 
