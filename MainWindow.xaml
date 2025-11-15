@@ -271,7 +271,8 @@
                 <TextBlock Text="🌍 Target Language" Style="{StaticResource LabelStyle}"/>
                 <ComboBox x:Name="LanguageComboBox" 
                           Style="{StaticResource ModernComboBox}" 
-                          SelectedIndex="0">
+                          SelectedIndex="0"
+                          SelectionChanged="LanguageComboBox_SelectionChanged">
                     <ComboBoxItem Content="🇷🇺 Russian (ru)" Tag="ru"/>
                     <ComboBoxItem Content="🇺🇦 Ukrainian (uk)" Tag="uk"/>
                     <ComboBoxItem Content="🇵🇱 Polish (pl)" Tag="pl"/>
